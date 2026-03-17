@@ -774,21 +774,30 @@ function buildPopup() {
 
   overlay.appendChild(el('div',{style:`margin-bottom:14px;background:${ac};color:white;font-size:11px;font-weight:800;border-radius:20px;padding:4px 16px;font-family:monospace`}, `${boxNum}단 카드${isActive?' · 현재 학습중':''}`));
 
-  // 카드
-  const cardWrap = el('div',{style:'width:100%;max-width:460px;aspect-ratio:1.6/1;perspective:1200px;cursor:pointer'});
-  const inner = el('div',{className:'card-flip-inner'});
+  // 이미지 유무에 따라 카드 형태 결정
+  const hasImg = !!(card.front.img || card.back.img);
+
+  // 카드 (이미지 있으면 세로형, 없으면 가로형)
+  const cardWrap = el('div',{style:`width:100%;max-width:460px;${hasImg?'':'aspect-ratio:1.6/1;'}perspective:1200px;cursor:pointer`});
+  const inner = el('div',{className:'card-flip-inner', style:hasImg?'position:relative;width:100%;':'width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);'});
 
   // 앞면
-  const front = el('div',{className:'card-face', style:'background:linear-gradient(135deg,#fff,#f4f6f8);box-shadow:0 20px 60px rgba(0,0,0,.4)'});
+  const frontStyle = hasImg
+    ? 'border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#fff,#f4f6f8);box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;align-items:center;padding:36px 16px 20px;gap:10px;position:relative;'
+    : 'background:linear-gradient(135deg,#fff,#f4f6f8);box-shadow:0 20px 60px rgba(0,0,0,.4)';
+  const front = el('div',{className: hasImg ? '' : 'card-face', style:frontStyle});
   front.appendChild(el('span',{style:'position:absolute;top:12px;left:16px;font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(0,0,0,.2);font-family:monospace'},'Q · 문제'));
-  if(card.front.img) front.appendChild(el('img',{src:card.front.img,style:'max-width:100%;max-height:45%;object-fit:contain;border-radius:8px'}));
-  if(card.front.text) front.appendChild(el('p',{style:`margin:0;text-align:center;font-size:${card.front.text.length>80?13:card.front.text.length>40?16:20}px;font-weight:700;line-height:1.6;color:#1a1a2e;word-break:keep-all`},card.front.text));
+  if(card.front.img) front.appendChild(el('img',{src:card.front.img,style:'width:90%;max-height:55vw;object-fit:contain;border-radius:10px;'}));
+  if(card.front.text) front.appendChild(el('p',{style:`margin:0;text-align:center;font-size:${card.front.text.length>80?13:card.front.text.length>40?16:18}px;font-weight:700;line-height:1.6;color:#1a1a2e;word-break:keep-all`},card.front.text));
 
   // 뒷면
-  const back = el('div',{className:'card-face back', style:'background:linear-gradient(135deg,#1a1a2e,#0f3460);box-shadow:0 20px 60px rgba(0,0,0,.4)'});
+  const backStyle = hasImg
+    ? 'border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#1a1a2e,#0f3460);box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;align-items:center;padding:36px 16px 20px;gap:10px;position:relative;display:none;'
+    : 'background:linear-gradient(135deg,#1a1a2e,#0f3460);box-shadow:0 20px 60px rgba(0,0,0,.4)';
+  const back = el('div',{className: hasImg ? '' : 'card-face back', style:backStyle});
   back.appendChild(el('span',{style:'position:absolute;top:12px;left:16px;font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.3);font-family:monospace'},'A · 정답'));
-  if(card.back.img) back.appendChild(el('img',{src:card.back.img,style:'max-width:100%;max-height:45%;object-fit:contain;border-radius:8px'}));
-  if(card.back.text) back.appendChild(el('p',{style:`margin:0;text-align:center;font-size:${card.back.text.length>80?13:card.back.text.length>40?16:20}px;font-weight:500;line-height:1.6;color:#e8f0fe;word-break:keep-all`},card.back.text));
+  if(card.back.img) back.appendChild(el('img',{src:card.back.img,style:'width:90%;max-height:55vw;object-fit:contain;border-radius:10px;'}));
+  if(card.back.text) back.appendChild(el('p',{style:`margin:0;text-align:center;font-size:${card.back.text.length>80?13:card.back.text.length>40?16:18}px;font-weight:500;line-height:1.6;color:#e8f0fe;word-break:keep-all`},card.back.text));
 
   inner.appendChild(front); inner.appendChild(back);
   cardWrap.appendChild(inner);
@@ -797,7 +806,13 @@ function buildPopup() {
 
   cardWrap.addEventListener('click', ()=>{
     flipped = !flipped;
-    inner.style.transform = flipped ? 'rotateY(180deg)' : '';
+    if(hasImg) {
+      // 이미지 카드: 앞/뒤를 show/hide로 전환
+      front.style.display = flipped ? 'none' : 'flex';
+      back.style.display  = flipped ? 'flex' : 'none';
+    } else {
+      inner.style.transform = flipped ? 'rotateY(180deg)' : '';
+    }
     hint.textContent = flipped ? '탭 → 문제로' : '탭 → 정답 확인';
   });
 
