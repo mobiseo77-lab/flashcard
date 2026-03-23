@@ -68,8 +68,18 @@
 // 상수 & 유틸
 // ═══════════════════════════════════════════════════════════
 const BOX_CAP = {3:5, 2:3, 1:1};
-let _uid = 200;
-const uid = () => ++_uid;
+// 타임스탬프 기반 고유 ID (260323145810 형식, 절대 중복 없음)
+function uid() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(2);
+  const mm = String(now.getMonth()+1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mi = String(now.getMinutes()).padStart(2,'0');
+  const ss = String(now.getSeconds()).padStart(2,'0');
+  const ms = String(now.getMilliseconds()).padStart(3,'0');
+  return Number(`${yy}${mm}${dd}${hh}${mi}${ss}${ms}`);
+}
 const SAVE_KEY = 'flashcard_pwa_v2';
 // 문제 또는 답 중 하나라도 비어있으면 false (빈 문자열도 없는 것으로 처리)
 const isValidCard = c => {
@@ -340,16 +350,56 @@ function uploadJSON(file) {
         alert('올바른 백업 파일이 아니에요.');
         return;
       }
-      if(!confirm('⚠️ 현재 모든 데이터가 백업 파일로 교체돼요.\n정말 복원할까요?')) return;
-      setState({
-        boxes:      data.boxes      || {3:[], 2:[], 1:[]},
-        deck:       data.deck       || [],
-        graduated:  data.graduated  || [],
-        registered: data.registered || [],
-        activeBox:  data.activeBox  || 3,
-        popup: null,
-      });
-      showToast('✅ 복원 완료!', '#27ae60');
+
+      // 덮어쓰기 vs 합치기 선택
+      const choice = confirm(
+        '📂 JSON 복원 방식을 선택하세요\n\n' +
+        '✅ 확인 → 합치기 (현재 데이터 유지 + 백업 카드 추가)\n' +
+        '❌ 취소 → 덮어쓰기 (현재 데이터 삭제 후 백업으로 교체)'
+      );
+
+      if (choice) {
+        // ── 합치기 ──
+        // 현재 전체 카드 id 목록
+        const existingIds = new Set([
+          ...state.boxes[3], ...state.boxes[2], ...state.boxes[1],
+          ...state.deck, ...state.graduated, ...state.registered,
+        ].map(c => String(c.front.text||'').trim() + '__' + String(c.back.text||'').trim()));
+
+        // 백업의 모든 카드 수집
+        const backupCards = [
+          ...(data.boxes?.[3]||[]), ...(data.boxes?.[2]||[]), ...(data.boxes?.[1]||[]),
+          ...(data.deck||[]), ...(data.graduated||[]), ...(data.registered||[]),
+        ];
+
+        // 중복 제거 후 registered에 추가
+        let added = 0, dup = 0;
+        const toAdd = [];
+        const seenKeys = new Set(existingIds);
+        backupCards.forEach(c => {
+          const key = String(c.front.text||'').trim() + '__' + String(c.back.text||'').trim();
+          if(seenKeys.has(key)) { dup++; return; }
+          seenKeys.add(key);
+          toAdd.push({...c, id: uid()}); // 새 id 부여
+          added++;
+        });
+
+        setState({ registered: [...state.registered, ...toAdd] });
+        showToast(`✅ ${added}개 추가! (중복 ${dup}개 제외)`, '#27ae60');
+
+      } else {
+        // ── 덮어쓰기 ──
+        if(!confirm('⚠️ 현재 모든 데이터가 삭제돼요. 정말 덮어쓸까요?')) return;
+        setState({
+          boxes:      data.boxes      || {3:[], 2:[], 1:[]},
+          deck:       data.deck       || [],
+          graduated:  data.graduated  || [],
+          registered: data.registered || [],
+          activeBox:  data.activeBox  || 3,
+          popup: null,
+        });
+        showToast('✅ 덮어쓰기 복원 완료!', '#2980b9');
+      }
     } catch(err) {
       alert('파일을 읽을 수 없어요. JSON 백업 파일인지 확인해주세요.');
     }
