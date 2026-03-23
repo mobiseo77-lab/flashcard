@@ -1,4 +1,4 @@
-const CACHE = 'flashcard-v24';
+const CACHE = 'flashcard-v25';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
