@@ -68,18 +68,8 @@
 // 상수 & 유틸
 // ═══════════════════════════════════════════════════════════
 const BOX_CAP = {3:5, 2:3, 1:1};
-// 타임스탬프 기반 고유 ID (260323145810 형식, 절대 중복 없음)
-function uid() {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(2);
-  const mm = String(now.getMonth()+1).padStart(2,'0');
-  const dd = String(now.getDate()).padStart(2,'0');
-  const hh = String(now.getHours()).padStart(2,'0');
-  const mi = String(now.getMinutes()).padStart(2,'0');
-  const ss = String(now.getSeconds()).padStart(2,'0');
-  const ms = String(now.getMilliseconds()).padStart(3,'0');
-  return Number(`${yy}${mm}${dd}${hh}${mi}${ss}${ms}`);
-}
+let _uid = 200;
+const uid = () => ++_uid;
 const SAVE_KEY = 'flashcard_pwa_v2';
 // 문제 또는 답 중 하나라도 비어있으면 false (빈 문자열도 없는 것으로 처리)
 const isValidCard = c => {
@@ -350,94 +340,19 @@ function uploadJSON(file) {
         alert('올바른 백업 파일이 아니에요.');
         return;
       }
-
-      // ── 3버튼 선택 팝업 ──
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s';
-
-      const box = document.createElement('div');
-      box.style.cssText = 'background:white;border-radius:20px;padding:24px 20px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;';
-
-      const title = document.createElement('p');
-      title.style.cssText = 'font-size:16px;font-weight:900;color:#1a1a2e;margin:0;text-align:center;';
-      title.textContent = '📂 복원 방식 선택';
-      box.appendChild(title);
-
-      const desc = document.createElement('p');
-      desc.style.cssText = 'font-size:12px;color:#888;margin:0;text-align:center;line-height:1.6;';
-      desc.textContent = '백업 파일을 어떻게 적용할까요?';
-      box.appendChild(desc);
-
-      const btnStyle = (bg, border) =>
-        `width:100%;padding:13px 0;border-radius:11px;border:none;cursor:pointer;font-size:14px;font-weight:800;color:white;background:linear-gradient(180deg,${bg});border-bottom:2px solid ${border};box-shadow:0 2px 6px rgba(0,0,0,.2);`;
-
-      // 합치기 버튼
-      const mergeBtn = document.createElement('button');
-      mergeBtn.style.cssText = btnStyle('#2ecc71,#1a9048', '#0d6030');
-      mergeBtn.textContent = '합치기';
-      mergeBtn.addEventListener('click', () => {
-        overlay.remove();
-        // ── 합치기 ──
-        const existingKeys = new Set([
-          ...state.boxes[3], ...state.boxes[2], ...state.boxes[1],
-          ...state.deck, ...state.graduated, ...state.registered,
-        ].map(c => String(c.front.text||'').trim() + '__' + String(c.back.text||'').trim()));
-
-        const backupCards = [
-          ...(data.boxes?.[3]||[]), ...(data.boxes?.[2]||[]), ...(data.boxes?.[1]||[]),
-          ...(data.deck||[]), ...(data.graduated||[]), ...(data.registered||[]),
-        ];
-
-        let added = 0, dup = 0;
-        const toAdd = [];
-        const seenKeys = new Set(existingKeys);
-        backupCards.forEach(c => {
-          const key = String(c.front.text||'').trim() + '__' + String(c.back.text||'').trim();
-          if(seenKeys.has(key)) { dup++; return; }
-          seenKeys.add(key);
-          toAdd.push({...c, id: uid()});
-          added++;
-        });
-        setState({ registered: [...state.registered, ...toAdd] });
-        showToast(`✅ ${added}개 추가! (중복 ${dup}개 제외)`, '#27ae60');
+      if(!confirm('⚠️ 현재 모든 데이터가 백업 파일로 교체돼요.\n정말 복원할까요?')) return;
+      setState({
+        boxes:      data.boxes      || {3:[], 2:[], 1:[]},
+        deck:       data.deck       || [],
+        graduated:  data.graduated  || [],
+        registered: data.registered || [],
+        activeBox:  data.activeBox  || 3,
+        popup: null,
       });
-      box.appendChild(mergeBtn);
-
-      // 덮어쓰기 버튼
-      const overBtn = document.createElement('button');
-      overBtn.style.cssText = btnStyle('#e74c3c,#a52828', '#701a1a');
-      overBtn.textContent = '덮어쓰기';
-      overBtn.addEventListener('click', () => {
-        overlay.remove();
-        // ── 덮어쓰기 ──
-        setState({
-          boxes:      data.boxes      || {3:[], 2:[], 1:[]},
-          deck:       data.deck       || [],
-          graduated:  data.graduated  || [],
-          registered: data.registered || [],
-          activeBox:  data.activeBox  || 3,
-          popup: null,
-        });
-        showToast('✅ 덮어쓰기 복원 완료!', '#2980b9');
-      });
-      box.appendChild(overBtn);
-
-      // 취소 버튼
-      const cancelBtn = document.createElement('button');
-      cancelBtn.style.cssText = btnStyle('#aaa,#888', '#666');
-      cancelBtn.textContent = '취소';
-      cancelBtn.addEventListener('click', () => overlay.remove());
-      box.appendChild(cancelBtn);
-
-      overlay.appendChild(box);
-      document.getElementById('app').appendChild(overlay);
-
+      showToast('✅ 복원 완료!', '#27ae60');
     } catch(err) {
       alert('파일을 읽을 수 없어요. JSON 백업 파일인지 확인해주세요.');
     }
-  };
-  reader.readAsText(file);
-}
   };
   reader.readAsText(file);
 }
@@ -1020,9 +935,6 @@ function buildMain() {
     if(n < 3) cardArea.appendChild(el('div',{style:'height:14px;flex-shrink:0'}));
   });
   s.appendChild(cardArea);
-
-  // 버전 표시 (우측 하단)
-  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260323 R26'));
 
   return s;
 }
