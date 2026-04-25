@@ -81,6 +81,43 @@ function uid() {
   return Number(`${yy}${mm}${dd}${hh}${mi}${ss}${ms}`);
 }
 const SAVE_KEY = 'flashcard_pwa_v2';
+
+// ── IndexedDB 저장소 (localStorage 대체 - PWA 종료 후에도 유지) ──
+const DB_NAME = 'flashcard_db';
+const DB_STORE = 'state';
+let _db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (_db) { resolve(_db); return; }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbSave(data) {
+  openDB().then(db => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(data, 'main');
+    // localStorage에도 이중 백업
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
+  }).catch(e => console.error('idbSave error:', e));
+}
+
+function idbLoad() {
+  return openDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const req = tx.objectStore(DB_STORE).get('main');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  });
+}
 // 문제 또는 답 중 하나라도 비어있으면 false (빈 문자열도 없는 것으로 처리)
 const isValidCard = c => {
   const fOk = !!(c.front.text?.trim() || c.front.img);
@@ -112,12 +149,10 @@ const DEMO = [
 ];
 
 function loadState() {
+  // localStorage fallback (동기 - 앱 초기 로드용)
   try {
     const r = localStorage.getItem(SAVE_KEY);
     if (r) return JSON.parse(r);
-    // 메인 키 없으면 백업 키 시도
-    const b = localStorage.getItem(SAVE_KEY + '_backup');
-    if (b) return JSON.parse(b);
   } catch{}
   return null;
 }
@@ -158,18 +193,32 @@ function resizeImage(file) {
 // ═══════════════════════════════════════════════════════════
 // 앱 상태
 // ═══════════════════════════════════════════════════════════
-const saved = loadState();
+const saved = loadState();  // localStorage 빠른 로드
 const state = {
   boxes:      saved?.boxes      || {3:DEMO.slice(0,5), 2:[], 1:[]},
-  deck:       saved?.deck       || DEMO.slice(5),  // 3단 보충 대기열
+  deck:       saved?.deck       || DEMO.slice(5),
   graduated:  saved?.graduated  || [],
-  registered: saved?.registered || [],             // 등록 화면에서 새로 만든 카드들
+  registered: saved?.registered || [],
   activeBox:  saved?.activeBox  || 3,
   screen:     'main',
   popup:      null,
   toast:      null,
   editModal:  null,
 };
+
+// IndexedDB에서 추가 로드 (더 신뢰할 수 있는 데이터로 덮어쓰기)
+idbLoad().then(idbData => {
+  if (idbData) {
+    Object.assign(state, {
+      boxes:      idbData.boxes      || state.boxes,
+      deck:       idbData.deck       || state.deck,
+      graduated:  idbData.graduated  || state.graduated,
+      registered: idbData.registered || state.registered,
+      activeBox:  idbData.activeBox  || state.activeBox,
+    });
+    render();  // IndexedDB 데이터로 다시 렌더
+  }
+}).catch(() => {});
 
 // ═══════════════════════════════════════════════════════════
 // 엑셀 업로드 / 다운로드
@@ -484,17 +533,14 @@ function setState(patch, skipRender) {
 }
 
 function autoSave() {
-  try {
-    const data = JSON.stringify({
-      boxes:      state.boxes,
-      deck:       state.deck,
-      graduated:  state.graduated,
-      registered: state.registered,
-      activeBox:  state.activeBox,
-    });
-    localStorage.setItem(SAVE_KEY, data);
-    localStorage.setItem(SAVE_KEY + '_backup', data);
-  } catch(e) { console.error('[autoSave] error:', e); }
+  const data = {
+    boxes:      state.boxes,
+    deck:       state.deck,
+    graduated:  state.graduated,
+    registered: state.registered,
+    activeBox:  state.activeBox,
+  };
+  idbSave(data);  // IndexedDB + localStorage 이중 저장
 }
 
 // toast helper
@@ -1027,7 +1073,7 @@ function buildMain() {
   s.appendChild(cardArea);
 
   // 버전 표시 (우측 하단)
-  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260425 R28'));
+  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260425 R29'));
 
   return s;
 }
