@@ -1019,7 +1019,7 @@ function buildMain() {
   s.appendChild(cardArea);
 
   // 버전 표시 (우측 하단)
-  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260323 R26(fixed)'));
+  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260425 R27'));
 
   return s;
 }
@@ -1270,6 +1270,13 @@ function buildRegister() {
   jsonLabel.appendChild(jsonInput);
   btnBar.appendChild(jsonLabel);
 
+  // 전체선택 버튼
+  btnBar.appendChild(btn('전체선택', ()=>{
+    const allChecks = document.querySelectorAll('.card-set-check');
+    const allChecked = Array.from(allChecks).every(c=>c.checked);
+    allChecks.forEach(c=>{ c.checked = !allChecked; });
+  }, 'padding:5px 10px;border-radius:7px;font-size:12px;font-weight:800;color:white;flex-shrink:0;background:linear-gradient(180deg,#888,#555);border-top:1px solid #aaa;border-bottom:2px solid #333;box-shadow:0 2px 4px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.2);'));
+
   s.appendChild(btnBar);
 
   // ── 카드 목록 ──
@@ -1440,4 +1447,10 @@ if ('serviceWorker' in navigator) {
     }).catch(err => console.log('SW error:', err));
   });
 }
+
+// PWA 종료/백그라운드 전환 시 강제 저장
+window.addEventListener('pagehide', () => { autoSave(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { autoSave(); }
+});
 </script>
