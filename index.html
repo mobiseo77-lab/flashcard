@@ -112,7 +112,13 @@ const DEMO = [
 ];
 
 function loadState() {
-  try { const r=localStorage.getItem(SAVE_KEY); if(r) return JSON.parse(r); } catch{}
+  try {
+    const r = localStorage.getItem(SAVE_KEY);
+    if (r) return JSON.parse(r);
+    // 메인 키 없으면 백업 키 시도
+    const b = localStorage.getItem(SAVE_KEY + '_backup');
+    if (b) return JSON.parse(b);
+  } catch{}
   return null;
 }
 function saveState(s) {
@@ -479,14 +485,16 @@ function setState(patch, skipRender) {
 
 function autoSave() {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
+    const data = JSON.stringify({
       boxes:      state.boxes,
       deck:       state.deck,
       graduated:  state.graduated,
       registered: state.registered,
       activeBox:  state.activeBox,
-    }));
-  } catch(e) {}
+    });
+    localStorage.setItem(SAVE_KEY, data);
+    localStorage.setItem(SAVE_KEY + '_backup', data);
+  } catch(e) { console.error('[autoSave] error:', e); }
 }
 
 // toast helper
@@ -1019,7 +1027,7 @@ function buildMain() {
   s.appendChild(cardArea);
 
   // 버전 표시 (우측 하단)
-  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260425 R27'));
+  s.appendChild(el('div',{style:'position:absolute;bottom:8px;right:10px;font-size:9px;font-weight:700;color:#c8a800;opacity:.7;font-family:monospace;letter-spacing:.5px;pointer-events:none'},'Ver. 260425 R28'));
 
   return s;
 }
@@ -1448,8 +1456,21 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// 뒤로가기 누르면 저장 확인 후 종료
+history.pushState(null, '', location.href);
+window.addEventListener('popstate', () => {
+  autoSave();
+  if (confirm('저장하고 앱을 종료할까요?')) {
+    autoSave();
+    window.close();
+  } else {
+    history.pushState(null, '', location.href);
+  }
+});
+
 // PWA 종료/백그라운드 전환 시 강제 저장
 window.addEventListener('pagehide', () => { autoSave(); });
+window.addEventListener('beforeunload', () => { autoSave(); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { autoSave(); }
 });
